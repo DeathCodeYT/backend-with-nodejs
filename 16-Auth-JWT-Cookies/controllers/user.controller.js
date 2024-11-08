@@ -1,4 +1,4 @@
-import { asyncWrapper } from "../middlewares/asyncWrapper.js";
+import { asyncWrapper } from "../middlewares/asyncWrapper.middleware.js";
 import { User } from "../model/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import bcrypt from "bcrypt";
@@ -24,6 +24,24 @@ export const signup = asyncWrapper(async (req, res, next) => {
       )
     );
 });
+
+export const logout = asyncWrapper(async (req, res, next) => {
+  
+  return res
+    .status(200)
+    .json(
+      new ApiRes(
+        200,
+        {
+          username: user.username,
+          email: user.email,
+          fullname: user.fullname,
+          accessToken,
+        },
+        "User Created"
+      )
+    );
+});
 export const login = asyncWrapper(async (req, res, next) => {
   const { username, password } = req.body;
   if (!(username && password)) throw new ApiError(400, "Wrong Credentials");
@@ -31,18 +49,31 @@ export const login = asyncWrapper(async (req, res, next) => {
   const user = await User.findOne({ username });
   if (!user) throw new ApiError(400, "User not Found");
 
-  if (!await user.isPasswordCorrect(password))
+  if (!(await user.isPasswordCorrect(password)))
     throw new ApiError(400, "Wrong Credentials");
 
   const accessToken = user.genrateAccessToken();
   const refreshToken = user.genrateRefreshToken();
-    res.cookie('auth',accessToken,)
+
+  user.refreshToken = refreshToken;
+  await user.save();
+
+  res.cookie("auth", accessToken, {
+    maxAge: 2 * 24 * 60 * 60 * 1000,
+    secure: true,
+    httpOnly: true,
+  });
   return res
     .status(200)
     .json(
       new ApiRes(
         200,
-        { username: user.username, email: user.email, fullname:user.fullname,accessToken },
+        {
+          username: user.username,
+          email: user.email,
+          fullname: user.fullname,
+          accessToken,
+        },
         "User Created"
       )
     );
